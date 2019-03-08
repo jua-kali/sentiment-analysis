@@ -13,12 +13,12 @@ dt <- dt_all
 plot_ly(dt, x= ~dt$iphonesentiment, type='histogram')
 
 
-#### Filter Data Table #### ----------------------------------------------------------------
+#### Filter Data Table to Phone #### ----------------------------------------------------------------
 phone <- "iphone"
 set.seed(42)
 
 dt <- dt_all %>% dplyr:: select(starts_with(phone))
-
+df <- setDF(dt)
 
 #### Correlations ####
 corrplot(cor(dt), method="number", type = "upper")
@@ -37,13 +37,24 @@ dt <- dt[, keep, with=FALSE]
 corrplot.mixed(cor(dt))
 
 
-#### MVP Model #### -----------------------------------------------
+
+#### Zero variance ####
+nzvMetrics <- nearZeroVar(dt, saveMetrics = TRUE)
+nzvMetrics
+
+nzv <- nearZeroVar(dt, saveMetrics = FALSE)
+nzv
+
+# Remove near zero variance variable
+iphoneNZV <- df[, -nzv]
 
 
+
+#### Set up model variables ####
 tar_name <- paste0(phone, 'sentiment')
 
 # Convert to data frame, caret doesn't seem to deal well with data tables
-df <- setDF(dt)
+# df <- setDF(dt)
 
 # Select all non-target columns
 X <- df %>% select(-c(tar_name)) 
@@ -66,6 +77,7 @@ str(y_test)
 registerDoParallel(2)
 getDoParWorkers()
 
+#### MVP Model #### -----------------------------------------------
 
 control <- trainControl(method = 'cv',
                         number = 5,
@@ -83,6 +95,32 @@ model_list <- caretList(x=X_train, y=y_train,
 
 model_list$rf
 model_list$knn
+
+
+#### Recursive Feature Elimination ####
+
+# Sample data
+iphoneSample <-df[sample(1:nrow(df), 1000, replace = FALSE), ]
+
+# Set up rfeControl with randomforest
+ctrl <- rfeControl(functions = rfFuncs, 
+                   method = "repeatedCV",
+                   repeats = 5,
+                   verbose = FALSE,
+                   allowParallel = TRUE)
+
+names(iphoneSample)
+vars = length(iphoneSample)
+
+rfeResults <- rfe(iphoneSample[, 1:(vars -1)], 
+                  iphoneSample$iphonesentiment,
+                  sizes=(1:(vars-1)),
+                  rfeControl=ctrl)
+
+rfeResults
+
+# Plot results
+plot(rfeResults, type=c("g", "o"))
 
 #### Check for zero rows #### ---------------------------------------------
 
