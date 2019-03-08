@@ -1,10 +1,10 @@
 pacman::p_load(plotly, data.table, reshape2, ggplot2, dplyr, 
-               caret, caretEnsemble, doParallel)
+               caret, caretEnsemble, doParallel, corrplot)
 
 dt_all <- fread('data/iphone_smallmatrix_labeled_8d.csv')
 
-str(dt)
-summary(dt)
+str(dt_all)
+summary(dt_all)  #Boxplot is the visual version of this
 
 dt <- dt_all
 
@@ -12,24 +12,45 @@ dt <- dt_all
 
 plot_ly(dt, x= ~dt$iphonesentiment, type='histogram')
 
-#### MVP Model #### -----------------------------------------------
+
+#### Filter Data Table #### ----------------------------------------------------------------
 phone <- "iphone"
 set.seed(42)
 
 dt <- dt_all %>% dplyr:: select(starts_with(phone))
 
+
+#### Correlations ####
+corrplot(cor(dt), method="number", type = "upper")
+
+str(cor(dt))
+
+corrplot.mixed(cor(dt))
+
+names(dt)
+
+keep <- c("iphonesentiment", 
+          "iphonecamneg", "iphonecampos",
+          "iphoneperunc", "iphonedisunc", 
+          "iphonedispos", "iphone")
+dt <- dt[, keep, with=FALSE]
+corrplot.mixed(cor(dt))
+
+
+#### MVP Model #### -----------------------------------------------
+
+
 tar_name <- paste0(phone, 'sentiment')
 
-rm(X)
+# Convert to data frame, caret doesn't seem to deal well with data tables
+df <- setDF(dt)
 
 # Select all non-target columns
-# Convert to data frame, caret doesn't seem to deal well with data tables
-X <- dt %>% select(-c(tar_name)) %>% setDF()
-y <- dt %>% select(c(tar_name)) %>% setDF()
+X <- df %>% select(-c(tar_name)) 
+y <- df %>% select(c(tar_name)) 
 
 
-
-part <- createDataPartition(dt[, get(tar_name)], 
+part <- createDataPartition(df[, tar_name], 
                             p = 0.75,
                             list = FALSE)
 X_train <- X[part, ]
@@ -48,15 +69,20 @@ getDoParWorkers()
 
 control <- trainControl(method = 'cv',
                         number = 5,
+                        index = createFolds(y_train, 5),
                         savePredictions = "final",
                         allowParallel = TRUE)
 
 model_list <- caretList(x=X_train, y=y_train,
                         trControl = control,
-                        methodList = c('lm', 'rf'),
+                        methodList = c( 'rf', 'knn'),  #'lm'
                         tuneList = NULL,
                         continue_on_fail = FALSE)
                         # preProcess = c('center', 'scale'))
+
+
+model_list$rf
+model_list$knn
 
 #### Check for zero rows #### ---------------------------------------------
 
@@ -98,7 +124,9 @@ p <- ggplot(dt2, aes(value, color = variable)) + stat_ecdf(geom = "point")
 p
 ggplotly(p)
 
-#### Histogram Plot Target ####
+
+
+
 
 
 #### Sandbox #### ------------------------------------------------------------
