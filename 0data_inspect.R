@@ -122,6 +122,18 @@ rfeResults
 # Plot results
 plot(rfeResults, type=c("g", "o"))
 
+# In this case, the best number is 10, but it's because 
+# I had reduced already
+
+# # create new data set with rfe recommended features
+# iphoneRFE <- iphoneDF[,predictors(rfeResults)]
+# 
+# # add the dependent variable to iphoneRFE
+# iphoneRFE$iphonesentiment <- iphoneDF$iphonesentiment
+# 
+# # review outcome
+# str(iPhoneRFE)
+
 #### Check for zero rows #### ---------------------------------------------
 
 
