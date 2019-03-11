@@ -1,6 +1,8 @@
 pacman::p_load(plotly, data.table, reshape2, ggplot2, dplyr, 
                caret, caretEnsemble, doParallel, corrplot)
 
+# Read as a data table
+# However, caret seems to struggle with data table input
 dt_all <- fread('data/iphone_smallmatrix_labeled_8d.csv')
 
 str(dt_all)
@@ -15,6 +17,46 @@ dt$iphonesentiment <- as.factor(dt$iphonesentiment)
 #### Histogram target variable #### ---------------------------------------
 
 plot_ly(dt, x= ~dt$iphonesentiment, type='histogram')
+
+#### Check for zero rows #### ---------------------------------------------
+
+# Total observations = 12973
+nrow(dt)
+
+# Number of rows that are all zero = 0
+nrow(dt[rowSums(dt) == 0])
+
+# Drop the phone column
+f0 <- select(dt, -c(phone))
+
+# Rows with no value = 592
+nrow(dt[rowSums(f0) == 0])
+
+# Total columns = 59
+ncol(dt)
+
+# Number of columns with zero values = 0
+sum(colSums(dt) == 0)
+
+# Number of NA values = 0
+sum(is.na(dt))
+
+# Max values
+colMax <- function(data) sapply(data, max, na.rm = TRUE)
+colMax(dt)
+
+#### Boxplot #### ------------------------------------------------------------
+# Two columns with variable and value
+dt2 <- melt(dt)
+
+plot_ly(dt2, x = ~variable, y = ~value, type ="box") 
+
+
+#### CDF plot #### -----------------------------------------------------------
+p <- ggplot(dt2, aes(value, color = variable)) + stat_ecdf(geom = "point")
+p
+ggplotly(p)
+
 
 
 #### Filter Data Table to Phone #### ----------------------------------------------------------------
@@ -115,7 +157,7 @@ tar_name <- paste0(phone, 'sentiment')
 # Choose which dataframe to work with
 # Caret doesn't seem to deal well with data tables!
 
-df <- iphoneRFE
+df <- setDF(dt_all) #iphoneRFE
 df$iphonesentiment <- as.factor(df$iphonesentiment)
 
 # Select all non-target columns
@@ -136,8 +178,23 @@ str(X_test)
 str(y_train)
 str(y_test)
 
+#### PCA #### 
 
-#### MVP Model #### -----------------------------------------------
+
+#### Modelling #### -----------------------------------------------
+
+
+# Set up PCA with 90% of variance captured in model
+preprocessParams <- preProcess(X_train, 
+                               method=c("center", "scale", "pca"), 
+                               thresh = 0.9)
+
+print(preprocessParams)
+
+# Create PCA predictors to train/test model
+X_train_pca <- predict(preprocessParams, X_train)
+X_test_pca <- predict(preprocessParams, X_test)
+
 
 control <- trainControl(method = 'cv',
                         number = 5,
@@ -145,63 +202,26 @@ control <- trainControl(method = 'cv',
                         savePredictions = "final",
                         allowParallel = TRUE)
 
-model_list <- caretList(x=X_train, y=y_train,
+model_list <- caretList(x=X_train_pca, y=y_train,
                         trControl = control,
                         methodList = c( 'rf', 'knn'),  #'lm'
                         tuneList = NULL,
-                        continue_on_fail = FALSE,
-                        preProcess = c('center', 'scale'))
+                        continue_on_fail = FALSE) 
+                        # preProcess = c('center', 'scale'))
 
 
 model_list$rf
 model_list$knn
 
-pred_rf <- predict(model_list$rf, X_test)
+
+# Ground truth with test set
+pred_rf <- predict(model_list$rf, X_test_pca)
 confusionMatrix(pred_rf, y_test)
-
-#### Check for zero rows #### ---------------------------------------------
-
-
-# Total observations = 12973
-nrow(dt)
-
-# Number of rows that are all zero = 0
-nrow(dt[rowSums(dt) == 0])
-
-# Drop the phone column
-f0 <- select(dt, -c(phone))
-
-# Rows with no value = 592
-nrow(dt[rowSums(f0) == 0])
-
-# Total columns = 59
-ncol(dt)
-
-# Number of columns with zero values = 0
-sum(colSums(dt) == 0)
-
-# Number of NA values = 0
-sum(is.na(dt))
-
-# Max values
-colMax <- function(data) sapply(data, max, na.rm = TRUE)
-colMax(dt)
-
-#### Boxplot #### ------------------------------------------------------------
-# Two columns with variable and value
-dt2 <- melt(dt)
-
-plot_ly(dt2, x = ~variable, y = ~value, type ="box") 
-
-
-#### CDF plot #### -----------------------------------------------------------
-p <- ggplot(dt2, aes(value, color = variable)) + stat_ecdf(geom = "point")
-p
-ggplotly(p)
-
-
-
+# Error metrics
+postResample(pred_rf, y_test)
 
 
 
 #### Sandbox #### ------------------------------------------------------------
+
+
