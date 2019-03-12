@@ -1,3 +1,5 @@
+pacman::p_load(arules, data.table)
+
 
 #### Load Data ####
 
@@ -49,9 +51,18 @@ weightDict['googleperneg'] = -10
 weightDict['iosperunc'] = 1
 weightDict['googleperunc'] = 1
 
-#### Apply Weight Dictionary to Data ####
+# Apply Weight Dictionary to Data #
 
 dt <- dt_raw[, names(weightDict), with=FALSE]*weightDict
+
+f0 <- dt_raw[iphone != 0 | samsunggalaxy !=0]
+
+
+# dt[99076, , ]
+
+bins <- c(-5000, -100, -1, 1.01, 100, 5000)
+
+#### Calculate iPhone Score ####
 
 iphone_score <- c('iphonecampos', 'iphonecamneg', 'iphonecamunc',
                   'iphonedispos', 'iphonedisneg', 'iphonedisunc',
@@ -61,11 +72,47 @@ iphone_score <- c('iphonecampos', 'iphonecamneg', 'iphonecamunc',
 
 dt_i_score <- dt[, iphone_score, with=FALSE]
 dt_i_score$iphonesentiment <- rowSums(dt_i_score)
-dt_i_score <- dt_i_score[iphonesentiment != 0 ]
+
+dt_i_score$iphonebins <- discretize(dt_i_score$iphonesentiment,
+                                     method="fixed",
+                                     breaks= bins,
+                                     labels = c("very negative", "negative", "neutral", "positive", "very positive")
+                                    )
+
+a <- table(dt_i_score$iphonebins)
+
 
 esquisse::esquisser()
 
 boxplot(dt_i_score$iphonesentiment)
+
+#### Calculate Samsung Score ####
+sam_score <- c('samsungcampos', 'samsungcamneg', 'samsungcamunc',
+                  'samsungdispos', 'samsungdisneg', 'samsungdisunc',
+                  'samsungperpos', 'samsungperneg', 'samsungperunc',
+                  'googleperpos', 'googleperneg', 'googleperunc')
+
+
+dt_s_score <- dt[, sam_score, with=FALSE]
+dt_s_score$samsungsentiment <- rowSums(dt_s_score)
+
+
+dt_s_score <- dt_s_score[samsungsentiment != 0 ]
+
+dt_s_score$samsungbins <- discretize(dt_s_score$samsungsentiment,
+                                     method="fixed",
+                                     breaks= bins,
+                                     labels = c("very negative", "negative", "neutral", "positive", "very positive")
+                                     )
+                                     
+
+esquisse::esquisser()
+
+boxplot(dt_s_score$samsungsentiment)
+
+b <- table(dt_s_score$samsungbins)
+
+b
 
 #### Sandbox ####
 DT = data.table(x=rep(c("a","b","c"),each=3), y=c(1,3,6), v=1:9)
